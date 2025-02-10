@@ -16,6 +16,11 @@ def get_pinyin_with_tones(word):
     pinyin_with_tone = pinyin(word, style=Style.TONE)
     return ' '.join([item[0] for item in pinyin_with_tone])
 
+def remove_duplicates(input_list):
+    seen = set()
+    return [item for item in input_list if not (item in seen or seen.add(item))]
+
+
 # Read CSV file to get the words and deck info
 def read_hanzi_words(csv_filename):
     hanzi_words = []
@@ -24,11 +29,11 @@ def read_hanzi_words(csv_filename):
         header = next(reader)  # Read the first line for deck info
         deck_number = int(header[0])  # Deck number
         deck_name = header[1]  # Deck name
-        
+
         for row in reader:
             if len(row) == 2:  # Ensure it's a valid row with translation and Hanzi
                 hanzi_words.append([row[0], row[1]])
-                
+
     return deck_number, deck_name, hanzi_words
 
 # Create the Anki deck
@@ -67,8 +72,8 @@ def create_deck(csv_filename):
 
         // Create HanziWriter instance inside the container
         var writer = HanziWriter.create(characterContainer, x, {
-          width: 150,
-          height: 150,
+          width: 250,
+          height: 250,
           showCharacter: false,
           showOutline: false,
           showHintAfterMisses: 1,
@@ -127,7 +132,6 @@ def create_deck(csv_filename):
         deck_name
     )
 
-  #hanzi_words = [['Hello', '你好'], ['learn', '学习'], ['chinese character', '汉字'], ['china', '中国']]
   media_files = []
 
   for word in hanzi_words:
@@ -139,6 +143,8 @@ def create_deck(csv_filename):
           fields=[word[0], word[1], pinyin_str, '[sound:'+mp3+']']
       )
       deck.add_note(note)
+
+  media_files = remove_duplicates(media_files)
 
   package = genanki.Package(deck)
   package.media_files = media_files
