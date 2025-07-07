@@ -1,5 +1,6 @@
 __pycache__/
 py-venv/
+audio_cache/
 *.apkg
 *.csv
 *.log
