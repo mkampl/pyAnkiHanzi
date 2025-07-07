@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-pyAnkiHanzi - Erstellt Anki-Karten für chinesische Zeichen mit Strichfolgen-Animation
+pyAnkiHanzi - Creates Anki cards for Chinese characters with stroke order animations
 """
 
 import genanki
@@ -16,7 +16,7 @@ import shutil
 from typing import List, Tuple, Optional
 from tqdm import tqdm
 
-# Konfiguration
+# Configuration
 DEFAULT_CONFIG = {
     'model_id': 1607392319,
     'hanzi_writer_version': '2.2',
@@ -26,7 +26,7 @@ DEFAULT_CONFIG = {
     'character_height': 250
 }
 
-# Logging-Konfiguration
+# Logging configuration
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
@@ -39,14 +39,14 @@ logger = logging.getLogger(__name__)
 
 
 class AnkiHanziGenerator:
-    """Hauptklasse für die Erstellung von Anki-Karten für chinesische Zeichen"""
+    """Main class for creating Anki cards for Chinese characters"""
     
     def __init__(self, language: str = 'zh', include_audio: bool = True):
         self.language = language
         self.include_audio = include_audio
         self.temp_dir = tempfile.mkdtemp(prefix='pyankihanzi_')
         self.media_files = []
-        logger.info(f"Initialisiert mit Sprache: {language}, Audio: {include_audio}")
+        logger.info(f"Initialized with language: {language}, audio: {include_audio}")
     
     def __enter__(self):
         return self
@@ -55,43 +55,43 @@ class AnkiHanziGenerator:
         self.cleanup()
     
     def cleanup(self):
-        """Räumt temporäre Dateien und Verzeichnisse auf"""
+        """Cleans up temporary files and directories"""
         try:
             if os.path.exists(self.temp_dir):
                 shutil.rmtree(self.temp_dir)
-                logger.info(f"Temporäres Verzeichnis {self.temp_dir} aufgeräumt")
+                logger.info(f"Cleaned up temporary directory {self.temp_dir}")
         except Exception as e:
-            logger.warning(f"Konnte temporäres Verzeichnis nicht aufräumen: {e}")
+            logger.warning(f"Could not clean up temporary directory: {e}")
     
     def validate_csv_format(self, csv_filename: str) -> bool:
-        """Validiert das CSV-Format vor der Verarbeitung"""
+        """Validates CSV format before processing"""
         if not csv_filename.endswith('.csv'):
-            logger.error("Datei muss eine .csv-Datei sein")
+            logger.error("File must be a .csv file")
             return False
         
         if not os.path.exists(csv_filename):
-            logger.error(f"Datei {csv_filename} existiert nicht")
+            logger.error(f"File {csv_filename} does not exist")
             return False
         
         if os.path.getsize(csv_filename) == 0:
-            logger.error(f"Datei {csv_filename} ist leer")
+            logger.error(f"File {csv_filename} is empty")
             return False
         
         return True
     
     def read_hanzi_words(self, csv_filename: str) -> Tuple[int, str, List[List[str]]]:
         """
-        Liest chinesische Wörter aus einer CSV-Datei.
+        Reads Chinese words from a CSV file.
         
         Args:
-            csv_filename: Pfad zur CSV-Datei
+            csv_filename: Path to CSV file
             
         Returns:
-            Tupel aus (Deck-Nummer, Deck-Name, Liste der Wörter)
+            Tuple of (deck number, deck name, list of words)
             
         Raises:
-            ValueError: Bei ungültigem CSV-Format
-            FileNotFoundError: Wenn Datei nicht gefunden wird
+            ValueError: For invalid CSV format
+            FileNotFoundError: When file is not found
         """
         try:
             hanzi_words = []
@@ -100,60 +100,60 @@ class AnkiHanziGenerator:
                 try:
                     header = next(reader)
                     if len(header) < 2:
-                        raise ValueError("Header muss mindestens 2 Spalten haben")
+                        raise ValueError("Header must have at least 2 columns")
                     deck_number = int(header[0])
                     deck_name = header[1]
-                    logger.info(f"Deck gefunden: {deck_name} (ID: {deck_number})")
+                    logger.info(f"Found deck: {deck_name} (ID: {deck_number})")
                 except (ValueError, StopIteration) as e:
-                    logger.error(f"Fehler beim Lesen der Header: {e}")
-                    raise ValueError(f"Ungültiges CSV-Format: {e}")
+                    logger.error(f"Error reading header: {e}")
+                    raise ValueError(f"Invalid CSV format: {e}")
                 
                 for row_num, row in enumerate(reader, start=2):
                     if len(row) >= 2:
-                        # Entferne Leerzeichen und prüfe auf leere Werte
+                        # Remove whitespace and check for empty values
                         translation = row[0].strip()
                         hanzi = row[1].strip()
                         if translation and hanzi:
                             hanzi_words.append([translation, hanzi])
                         else:
-                            logger.warning(f"Zeile {row_num} übersprungen (leere Werte)")
+                            logger.warning(f"Row {row_num} skipped (empty values)")
                     else:
-                        logger.warning(f"Zeile {row_num} übersprungen (unvollständig)")
+                        logger.warning(f"Row {row_num} skipped (incomplete)")
             
             if not hanzi_words:
-                raise ValueError("Keine gültigen Wörter in der CSV-Datei gefunden")
+                raise ValueError("No valid words found in CSV file")
             
-            logger.info(f"{len(hanzi_words)} Wörter erfolgreich gelesen")
+            logger.info(f"{len(hanzi_words)} words successfully read")
             return deck_number, deck_name, hanzi_words
         
         except FileNotFoundError:
-            logger.error(f"Datei {csv_filename} nicht gefunden")
+            logger.error(f"File {csv_filename} not found")
             raise
         except Exception as e:
-            logger.error(f"Fehler beim Lesen der CSV-Datei: {e}")
+            logger.error(f"Error reading CSV file: {e}")
             raise
     
     def check_duplicates(self, hanzi_words: List[List[str]]) -> List[Tuple[int, str, str]]:
-        """Prüft auf doppelte Einträge"""
+        """Checks for duplicate entries"""
         seen = set()
         duplicates = []
         for i, (translation, hanzi) in enumerate(hanzi_words):
             key = (translation.lower(), hanzi)
             if key in seen:
                 duplicates.append((i+1, translation, hanzi))
-                logger.warning(f"Duplikat gefunden: {translation} - {hanzi}")
+                logger.warning(f"Duplicate found: {translation} - {hanzi}")
             seen.add(key)
         return duplicates
     
     def get_pronunciation_mp3(self, word: str) -> Optional[str]:
         """
-        Erstellt eine MP3-Datei für die Aussprache eines chinesischen Wortes.
+        Creates an MP3 file for the pronunciation of a Chinese word.
         
         Args:
-            word: Chinesisches Wort
+            word: Chinese word
             
         Returns:
-            Pfad zur MP3-Datei oder None bei Fehlern
+            Path to MP3 file or None on errors
         """
         if not self.include_audio:
             return None
@@ -168,18 +168,18 @@ class AnkiHanziGenerator:
             self.media_files.append(mp3_filename)
             return mp3_filename
         except Exception as e:
-            logger.warning(f"Konnte Audio für '{word}' nicht erstellen: {e}")
+            logger.warning(f"Could not create audio for '{word}': {e}")
             return None
     
     def get_pinyin_with_tones(self, word: str) -> str:
         """
-        Konvertiert chinesische Zeichen zu Pinyin mit Tönen.
+        Converts Chinese characters to Pinyin with tones.
         
         Args:
-            word: Chinesische Zeichen als String
+            word: Chinese characters as string
             
         Returns:
-            Pinyin-String mit Tönen, durch Leerzeichen getrennt
+            Pinyin string with tones, separated by spaces
             
         Example:
             >>> get_pinyin_with_tones("你好")
@@ -189,11 +189,11 @@ class AnkiHanziGenerator:
             pinyin_with_tone = pinyin(word, style=Style.TONE)
             return ' '.join([item[0] for item in pinyin_with_tone])
         except Exception as e:
-            logger.warning(f"Konnte Pinyin für '{word}' nicht erstellen: {e}")
-            return word  # Fallback zum ursprünglichen Wort
+            logger.warning(f"Could not create Pinyin for '{word}': {e}")
+            return word  # Fallback to original word
     
     def create_model(self) -> genanki.Model:
-        """Erstellt das Anki-Modell für die Karten"""
+        """Creates the Anki model for the cards"""
         return genanki.Model(
             DEFAULT_CONFIG['model_id'],
             'Hanzi Stroke Order Online JS',
@@ -274,34 +274,34 @@ class AnkiHanziGenerator:
     
     def create_deck(self, csv_filename: str, output_file: Optional[str] = None) -> str:
         """
-        Erstellt ein Anki-Deck aus einer CSV-Datei.
+        Creates an Anki deck from a CSV file.
         
         Args:
-            csv_filename: Pfad zur CSV-Eingabedatei
-            output_file: Pfad zur Ausgabedatei (optional)
+            csv_filename: Path to CSV input file
+            output_file: Path to output file (optional)
             
         Returns:
-            Pfad zur erstellten .apkg-Datei
+            Path to created .apkg file
         """
-        # Validierung
+        # Validation
         if not self.validate_csv_format(csv_filename):
-            raise ValueError("Ungültiges CSV-Format")
+            raise ValueError("Invalid CSV format")
         
-        # Daten lesen
+        # Read data
         deck_number, deck_name, hanzi_words = self.read_hanzi_words(csv_filename)
         
-        # Duplikate prüfen
+        # Check duplicates
         duplicates = self.check_duplicates(hanzi_words)
         if duplicates:
-            logger.warning(f"{len(duplicates)} Duplikate gefunden")
+            logger.warning(f"{len(duplicates)} duplicates found")
         
-        # Modell und Deck erstellen
+        # Create model and deck
         model = self.create_model()
         deck = genanki.Deck(deck_number, deck_name)
         
-        # Karten erstellen
-        logger.info("Erstelle Anki-Karten...")
-        for translation, hanzi in tqdm(hanzi_words, desc="Erstelle Karten"):
+        # Create cards
+        logger.info("Creating Anki cards...")
+        for translation, hanzi in tqdm(hanzi_words, desc="Creating cards"):
             try:
                 pinyin_str = self.get_pinyin_with_tones(hanzi)
                 mp3_path = self.get_pronunciation_mp3(hanzi)
@@ -314,51 +314,51 @@ class AnkiHanziGenerator:
                 )
                 deck.add_note(note)
             except Exception as e:
-                logger.error(f"Fehler beim Erstellen der Karte für '{hanzi}': {e}")
+                logger.error(f"Error creating card for '{hanzi}': {e}")
                 continue
         
-        # Package erstellen
+        # Create package
         package = genanki.Package(deck)
         if self.media_files:
             package.media_files = self.media_files
         
-        # Ausgabedatei bestimmen
+        # Determine output file
         if not output_file:
             output_file = csv_filename.replace('.csv', '.apkg')
         
-        # Datei schreiben
+        # Write file
         try:
             package.write_to_file(output_file)
-            logger.info(f"Deck erfolgreich erstellt: {output_file}")
+            logger.info(f"Deck successfully created: {output_file}")
             return output_file
         except Exception as e:
-            logger.error(f"Fehler beim Schreiben der Ausgabedatei: {e}")
+            logger.error(f"Error writing output file: {e}")
             raise
 
 
 def parse_arguments():
-    """Parst Kommandozeilenargumente"""
+    """Parses command line arguments"""
     parser = argparse.ArgumentParser(
-        description='Erstellt Anki-Karten für chinesische Zeichen mit Strichfolgen-Animation'
+        description='Creates Anki cards for Chinese characters with stroke order animations'
     )
-    parser.add_argument('input_file', help='CSV-Eingabedatei')
+    parser.add_argument('input_file', help='CSV input file')
     parser.add_argument('--no-audio', action='store_true', 
-                       help='Keine Audio-Dateien erstellen')
+                       help='Do not create audio files')
     parser.add_argument('--language', default='zh', 
                        choices=['zh', 'zh-cn', 'zh-tw'], 
-                       help='Sprache für TTS (Standard: zh)')
+                       help='Language for TTS (default: zh)')
     parser.add_argument('--output', 
-                       help='Ausgabedatei (Standard: basierend auf Eingabedatei)')
+                       help='Output file (default: based on input file)')
     parser.add_argument('--verbose', '-v', action='store_true',
-                       help='Ausführliche Ausgabe')
+                       help='Verbose output')
     return parser.parse_args()
 
 
 def main():
-    """Hauptfunktion"""
+    """Main function"""
     args = parse_arguments()
     
-    # Logging-Level anpassen
+    # Adjust logging level
     if args.verbose:
         logging.getLogger().setLevel(logging.DEBUG)
     
@@ -368,13 +368,13 @@ def main():
             include_audio=not args.no_audio
         ) as generator:
             output_file = generator.create_deck(args.input_file, args.output)
-            print(f"✅ Deck erfolgreich erstellt: {output_file}")
+            print(f"✅ Deck successfully created: {output_file}")
     
     except KeyboardInterrupt:
-        logger.info("Vorgang vom Benutzer abgebrochen")
+        logger.info("Operation cancelled by user")
         sys.exit(1)
     except Exception as e:
-        logger.error(f"Fehler: {e}")
+        logger.error(f"Error: {e}")
         sys.exit(1)
 
 

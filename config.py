@@ -1,15 +1,15 @@
 """
-Konfigurationsdatei für pyAnkiHanzi
+Configuration file for pyAnkiHanzi
 """
 
-# Anki-Modell Konfiguration
+# Anki model configuration
 ANKI_CONFIG = {
     'model_id': 1607392319,
     'model_name': 'Hanzi Stroke Order Online JS',
     'hanzi_writer_version': '2.2',
 }
 
-# HanziWriter Konfiguration
+# HanziWriter configuration
 HANZI_WRITER_CONFIG = {
     'quiz': {
         'character_width': 250,
@@ -31,7 +31,7 @@ HANZI_WRITER_CONFIG = {
     }
 }
 
-# TTS-Konfiguration
+# TTS configuration
 TTS_CONFIG = {
     'default_language': 'zh',
     'supported_languages': ['zh', 'zh-cn', 'zh-tw'],
@@ -39,7 +39,7 @@ TTS_CONFIG = {
     'timeout': 10
 }
 
-# Allgemeine Konfiguration
+# General configuration
 GENERAL_CONFIG = {
     'log_file': 'pyankihanzi.log',
     'temp_dir_prefix': 'pyankihanzi_',
@@ -48,7 +48,7 @@ GENERAL_CONFIG = {
     'encoding': 'utf-8'
 }
 
-# Validierung
+# Validation configuration
 VALIDATION_CONFIG = {
     'min_header_columns': 2,
     'required_row_columns': 2,

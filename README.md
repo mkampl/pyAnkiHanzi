@@ -1,167 +1,186 @@
 # pyAnkiHanzi 🈲
 
-Ein verbessertes Python-Tool zur Erstellung von Anki-Karten für chinesische Zeichen mit interaktiven Strichfolgen-Animationen.
+An improved Python tool for creating Anki cards for Chinese characters with interactive stroke order animations.
 
 ## Features ✨
 
-- **Robuste Fehlerbehandlung**: Umfassende Validierung und aussagekräftige Fehlermeldungen
-- **Interaktive Strichfolgen**: Nutzt HanziWriter für das Lernen der korrekten Strichfolge
-- **Audio-Unterstützung**: Automatische Generierung von Aussprache-Dateien (TTS)
-- **Pinyin-Integration**: Automatische Konvertierung zu Pinyin mit Tönen
-- **Progress-Anzeige**: Visualisierung des Fortschritts bei der Kartenerstellung
-- **Duplikat-Erkennung**: Warnt vor doppelten Einträgen
-- **Konfigurierbare Optionen**: Flexible Anpassung über Kommandozeilenparameter
-- **Logging**: Detaillierte Protokollierung für Debugging
-- **Context Manager**: Automatische Bereinigung temporärer Dateien
+- **Robust Error Handling**: Comprehensive validation and meaningful error messages
+- **Interactive Stroke Order**: Uses HanziWriter to learn correct stroke sequences
+- **Audio Support**: Automatic generation of pronunciation files (TTS)
+- **Pinyin Integration**: Automatic conversion to Pinyin with tones
+- **Progress Display**: Visual progress indication during card creation
+- **Duplicate Detection**: Warns about duplicate entries
+- **Configurable Options**: Flexible customization via command-line parameters
+- **Logging**: Detailed logging for debugging
+- **Context Manager**: Automatic cleanup of temporary files
 
 ## Installation 📦
 
-1. **Repository klonen oder Dateien herunterladen**
-2. **Abhängigkeiten installieren:**
+1. **Clone repository or download files**
+2. **Install dependencies:**
    ```bash
    pip install -r requirements.txt
    ```
 
-### Systemvoraussetzungen
+### System Requirements
 
 - Python 3.7+
-- Internetverbindung (für HanziWriter CDN und TTS)
+- Internet connection (for HanziWriter CDN and TTS)
 
-## Nutzung 🚀
+## Usage 🚀
 
-### Grundlegende Nutzung
+### Basic Usage
 
 ```bash
 python pyAnkiHanzi.py input.csv
 ```
 
-### Mit Optionen
+### With Options
 
 ```bash
-# Ohne Audio-Dateien
+# Without audio files
 python pyAnkiHanzi.py input.csv --no-audio
 
-# Mit spezifischer Sprache
+# With specific language
 python pyAnkiHanzi.py input.csv --language zh-cn
 
-# Mit benutzerdefinierter Ausgabedatei
-python pyAnkiHanzi.py input.csv --output mein_deck.apkg
+# With custom output file
+python pyAnkiHanzi.py input.csv --output my_deck.apkg
 
-# Ausführliche Ausgabe
+# Verbose output
 python pyAnkiHanzi.py input.csv --verbose
 ```
 
-### CSV-Format 📄
+### CSV Format 📄
 
-Die Eingabe-CSV-Datei muss folgendes Format haben:
+The input CSV file must have the following format:
 
 ```
 DECK_ID	DECK_NAME
-ÜBERSETZUNG1	HANZI1
-ÜBERSETZUNG2	HANZI2
+TRANSLATION1	HANZI1
+TRANSLATION2	HANZI2
 ...
 ```
 
-**Beispiel:**
+**Example:**
 ```
-123456	Chinesisch Grundwortschatz
-Hallo	你好
-Danke	谢谢
-Auf Wiedersehen	再见
+123456	Chinese Basic Vocabulary
+Hello	你好
+Thank you	谢谢
+Goodbye	再见
 ```
 
-### Beispiel-CSV erstellen
+### Create Sample CSV
 
 ```bash
-# Erstellt eine Beispiel-CSV-Datei
+# Creates a sample CSV file
 python test_pyankihanzi.py --create-sample
 ```
 
-## Programmstruktur 🏗️
+## Program Structure 🏗️
 
-### Hauptklasse: `AnkiHanziGenerator`
+### Main Class: `AnkiHanziGenerator`
 
 ```python
 with AnkiHanziGenerator(language='zh', include_audio=True) as generator:
     output_file = generator.create_deck('input.csv')
-    print(f"Deck erstellt: {output_file}")
+    print(f"Deck created: {output_file}")
 ```
 
-### Wichtige Methoden
+### Important Methods
 
-- `validate_csv_format()`: Validiert die Eingabedatei
-- `read_hanzi_words()`: Liest und parst die CSV-Datei
-- `check_duplicates()`: Erkennt doppelte Einträge
-- `get_pinyin_with_tones()`: Konvertiert zu Pinyin
-- `get_pronunciation_mp3()`: Erstellt Audio-Dateien
-- `create_deck()`: Generiert das Anki-Deck
+- `validate_csv_format()`: Validates the input file
+- `read_hanzi_words()`: Reads and parses the CSV file
+- `check_duplicates()`: Detects duplicate entries
+- `get_pinyin_with_tones()`: Converts to Pinyin
+- `get_pronunciation_mp3()`: Creates audio files
+- `create_deck()`: Generates the Anki deck
 
-## Konfiguration ⚙️
+## Configuration ⚙️
 
-### Verfügbare Parameter
+### Available Parameters
 
-| Parameter | Beschreibung | Standard |
-|-----------|--------------|----------|
-| `--language` | TTS-Sprache (zh, zh-cn, zh-tw) | zh |
-| `--no-audio` | Deaktiviert Audio-Generierung | False |
-| `--output` | Ausgabedatei | input.apkg |
-| `--verbose` | Ausführliche Ausgabe | False |
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `--language` | TTS language (zh, zh-cn, zh-tw) | zh |
+| `--no-audio` | Disable audio generation | False |
+| `--output` | Output file | input.apkg |
+| `--verbose` | Verbose output | False |
 
-### Erweiterte Konfiguration
+### Advanced Configuration
 
-Die Datei `config.py` enthält detaillierte Einstellungen für:
-- HanziWriter-Parameter
-- TTS-Konfiguration
-- Validierungsregeln
-- Anki-Modell-Einstellungen
+The `config.py` file contains detailed settings for:
+- HanziWriter parameters
+- TTS configuration
+- Validation rules
+- Anki model settings
 
-## Tests ausführen 🧪
+## Running Tests 🧪
 
 ```bash
-# Alle Tests ausführen
+# Run all tests
 python test_pyankihanzi.py --run-tests
 
-# Oder mit pytest
+# Or with pytest
 pytest test_pyankihanzi.py -v
+```
+
+### Test Suites
+
+```bash
+# Basic functionality tests
+python test_pyankihanzi.py --run-tests --test-suite basic
+
+# Integration tests
+python test_pyankihanzi.py --run-tests --test-suite integration
+
+# Error handling tests
+python test_pyankihanzi.py --run-tests --test-suite error
+
+# Performance tests
+python test_pyankihanzi.py --run-tests --test-suite performance
+
+# Environment diagnosis
+python test_pyankihanzi.py --diagnose
 ```
 
 ## Logging 📋
 
-Das Tool erstellt automatisch eine Log-Datei `pyankihanzi.log` mit:
-- Informationen über den Verarbeitungsfortschritt
-- Warnungen bei Problemen
-- Fehlerdetails für Debugging
+The tool automatically creates a log file `pyankihanzi.log` with:
+- Information about processing progress
+- Warnings for issues
+- Error details for debugging
 
-## Fehlerbehebung 🔧
+## Troubleshooting 🔧
 
-### Häufige Probleme
+### Common Issues
 
-1. **"Datei nicht gefunden"**
-   - Prüfen Sie den Dateipfad
-   - Stellen Sie sicher, dass die Datei eine .csv-Endung hat
+1. **"File not found"**
+   - Check the file path
+   - Make sure the file has a .csv extension
 
-2. **"Ungültiges CSV-Format"**
-   - Header muss mindestens 2 Spalten haben
-   - Verwenden Sie Tab-Trennung
-   - Erste Zeile: `DECK_ID<TAB>DECK_NAME`
+2. **"Invalid CSV format"**
+   - Header must have at least 2 columns
+   - Use tab separation
+   - First line: `DECK_ID<TAB>DECK_NAME`
 
-3. **TTS-Fehler**
-   - Internetverbindung prüfen
-   - Mit `--no-audio` ohne Audio erstellen
+3. **TTS errors**
+   - Check internet connection
+   - Create without audio using `--no-audio`
 
-4. **Encoding-Probleme**
-   - CSV-Datei muss UTF-8 kodiert sein
-   - In Excel: "Speichern unter" → "CSV UTF-8"
+4. **Encoding problems**
+   - CSV file must be UTF-8 encoded
+   - In Excel: "Save as" → "CSV UTF-8"
 
-### Debug-Modus
+### Debug Mode
 
 ```bash
 python pyAnkiHanzi.py input.csv --verbose
 ```
 
-## Erweiterte Features 🎯
+## Advanced Features 🎯
 
-### Batch-Verarbeitung
+### Batch Processing
 
 ```python
 from pyAnkiHanzi import AnkiHanziGenerator
@@ -177,47 +196,76 @@ with AnkiHanziGenerator() as generator:
             print(f"❌ {file}: {e}")
 ```
 
-### Anpassung der Kartenvorlage
+### Custom Card Template
 
-Die HTML-Templates in der `create_model()`-Methode können angepasst werden für:
-- Unterschiedliche Schriftgrößen
-- Farbschemata
-- Zusätzliche Felder
-- Layout-Änderungen
+The HTML templates in the `create_model()` method can be customized for:
+- Different font sizes
+- Color schemes
+- Additional fields
+- Layout changes
 
-## Beitragen 🤝
+## Contributing 🤝
 
-1. Fork des Repositories
-2. Feature-Branch erstellen (`git checkout -b feature/AmazingFeature`)
-3. Änderungen committen (`git commit -m 'Add some AmazingFeature'`)
-4. Branch pushen (`git push origin feature/AmazingFeature`)
-5. Pull Request öffnen
+1. Fork the repository
+2. Create feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push branch (`git push origin feature/AmazingFeature`)
+5. Open Pull Request
 
-## Lizenz 📄
+## License 📄
 
-Dieses Projekt steht unter der MIT-Lizenz - siehe [LICENSE](LICENSE) für Details.
+This project is licensed under the MIT License - see [LICENSE](LICENSE) for details.
 
-## Danksagungen 🙏
+## Acknowledgments 🙏
 
-- [HanziWriter](https://hanziwriter.org/) für die Strichfolgen-Animationen
-- [genanki](https://github.com/kerrickstaley/genanki) für die Anki-Package-Generierung
-- [gTTS](https://github.com/pndurette/gTTS) für die Text-zu-Sprache-Funktionalität
-- [pypinyin](https://github.com/mozillazg/python-pinyin) für die Pinyin-Konvertierung
+- [HanziWriter](https://hanziwriter.org/) for stroke order animations
+- [genanki](https://github.com/kerrickstaley/genanki) for Anki package generation
+- [gTTS](https://github.com/pndurette/gTTS) for text-to-speech functionality
+- [pypinyin](https://github.com/mozillazg/python-pinyin) for Pinyin conversion
 
 ## Changelog 📅
 
 ### Version 2.0.0
-- ✨ Komplett überarbeitete Architektur mit Klassen
-- ✨ Robuste Fehlerbehandlung und Validierung
-- ✨ Progress-Bars und bessere Benutzerfreundlichkeit
-- ✨ Umfassendes Logging
-- ✨ Context Manager für Ressourcenverwaltung
-- ✨ Duplikat-Erkennung
-- ✨ Konfigurierbare Optionen
-- ✨ Umfassende Tests
-- 🐛 Behebung von Encoding-Problemen
-- 🐛 Verbesserte Bereinigung temporärer Dateien
+- ✨ Complete architectural overhaul with classes
+- ✨ Robust error handling and validation
+- ✨ Progress bars and better user experience
+- ✨ Comprehensive logging
+- ✨ Context manager for resource management
+- ✨ Duplicate detection
+- ✨ Configurable options
+- ✨ Comprehensive test suite
+- 🐛 Fixed encoding issues
+- 🐛 Improved cleanup of temporary files
+
+## Usage Examples 📖
+
+### Basic Card Creation
+
+```bash
+# Create a basic deck
+python pyAnkiHanzi.py my_vocabulary.csv
+```
+
+### Advanced Usage
+
+```bash
+# Create deck without audio for faster processing
+python pyAnkiHanzi.py large_vocabulary.csv --no-audio
+
+# Use Traditional Chinese TTS
+python pyAnkiHanzi.py traditional_vocab.csv --language zh-tw
+
+# Verbose mode for troubleshooting
+python pyAnkiHanzi.py problematic_file.csv --verbose
+```
+
+### Environment Check
+
+```bash
+# Check if all dependencies are installed
+python test_pyankihanzi.py --diagnose
+```
 
 ---
 
-**Viel Erfolg beim Chinesisch lernen! 🇨🇳**
+**Happy Chinese learning! 🇨🇳**

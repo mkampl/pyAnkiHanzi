@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 """
-Setup-Script für pyAnkiHanzi
+Setup script for pyAnkiHanzi
 """
 
 from setuptools import setup, find_packages
 import os
 
-# Lese README für long_description
+# Read README for long_description
 def read_readme():
     with open("README.md", "r", encoding="utf-8") as fh:
         return fh.read()
 
-# Lese requirements
+# Read requirements
 def read_requirements():
     with open("requirements.txt", "r", encoding="utf-8") as fh:
         return [line.strip() for line in fh if line.strip() and not line.startswith("#")]
@@ -19,12 +19,12 @@ def read_requirements():
 setup(
     name="pyankihanzi",
     version="2.0.0",
-    author="Ihr Name",
-    author_email="ihre.email@example.com",
-    description="Erstellt Anki-Karten für chinesische Zeichen mit interaktiven Strichfolgen",
+    author="Markus Kampl",
+    author_email="markus.kampl@gmail.com",
+    description="Creates Anki cards for Chinese characters with interactive stroke order",
     long_description=read_readme(),
     long_description_content_type="text/markdown",
-    url="https://github.com/IhrUsername/pyAnkiHanzi",
+    url="https://github.com/mkampl/pyAnkiHanzi",
     py_modules=["pyAnkiHanzi", "config"],
     classifiers=[
         "Development Status :: 4 - Beta",
@@ -62,8 +62,8 @@ setup(
     },
     keywords="anki chinese hanzi flashcards education language-learning",
     project_urls={
-        "Bug Reports": "https://github.com/IhrUsername/pyAnkiHanzi/issues",
-        "Source": "https://github.com/IhrUsername/pyAnkiHanzi",
-        "Documentation": "https://github.com/IhrUsername/pyAnkiHanzi/blob/main/README.md",
+        "Bug Reports": "https://github.com/mkampl/pyAnkiHanzi/issues",
+        "Source": "https://github.com/mkampl/pyAnkiHanzi",
+        "Documentation": "https://github.com/mkampl/pyAnkiHanzi/blob/main/README.md",
     },
 )
