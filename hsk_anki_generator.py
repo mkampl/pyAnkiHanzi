@@ -158,10 +158,11 @@ class HSKAnkiGenerator:
         # Create temporary CSV file
         csv_filename = f"hsk_{hsk_level}_temp.csv"
         
-        config = self.hsk_config.get(hsk_level, {
+        # Configuration for this level
+        config = {
             "deck_id": 2059400100 + hsk_level * 10,
             "name": f"HSK {hsk_level} - Vocabulary"
-        })
+        }
         
         logger.info(f"Creating CSV for HSK {hsk_level} with {len(level_entries)} words")
         
@@ -271,9 +272,14 @@ class HSKAnkiGenerator:
                 if pinyin:
                     translation += f" ({pinyin})"
                 
-                # Create audio file if enabled
-                mp3_path = self.get_pronunciation_mp3(simplified) if self.include_audio else None
-                mp3_field = f'[sound:{os.path.basename(mp3_path)}]' if mp3_path else ''
+                # Create audio file if enabled - FIXED: proper Anki format
+                mp3_field = ''
+                if self.include_audio:
+                    mp3_path = self.get_pronunciation_mp3(simplified)
+                    if mp3_path:
+                        # Use proper Anki sound format: [sound:filename.mp3]
+                        mp3_filename = os.path.basename(mp3_path)
+                        mp3_field = f'[sound:{mp3_filename}]'
                 
                 # Add card to all relevant HSK level subdecks
                 for level_str in levels:
@@ -297,6 +303,19 @@ class HSKAnkiGenerator:
         # Add media files if any
         if self.media_files:
             package.media_files = self.media_files
+            logger.info(f"Adding {len(self.media_files)} media files to package")
+            # Debug: Log all media files being included
+            for media_file in self.media_files:
+                logger.debug(f"Including media file: {media_file}")
+                # Verify file exists and has content
+                if os.path.exists(media_file):
+                    file_size = os.path.getsize(media_file)
+                    logger.debug(f"  - Size: {file_size} bytes")
+                    if file_size == 0:
+                        logger.warning(f"  - Warning: Empty file detected: {media_file}")
+                else:
+                    logger.error(f"  - Error: File not found: {media_file}")
+
         
         # Write the unified deck file
         try:
@@ -367,7 +386,7 @@ class HSKAnkiGenerator:
                         </script>
                     ''',
                     'afmt': f'''
-                        <div id="word">{{{{Translation}}}} - {{{{Hanzi}}}} {{{{Pinyin}}}} <br>{{{{Mp3}}}}<br></div>
+                        <div id="word">{{{{Translation}}}} - {{{{Hanzi}}}} {{{{Pinyin}}}}<br>{{{{Mp3}}}}<br></div>
                         <hr id="answer">
                         <div id="target-animation"></div>
                         <script type="text/javascript">
@@ -408,16 +427,20 @@ class HSKAnkiGenerator:
             cache_filename = f"{safe_word}_{unicode_ids}_{self.language}.mp3"
             cache_path = os.path.join(self.cache_dir, cache_filename)
             
+            # FIXED: Use working directory instead of temp directory for AnkiDroid compatibility
+            deck_filename = f"hsk_{unicode_ids}.mp3"
+            media_path = os.path.join(os.getcwd(), deck_filename)
+            
             # Check if file already exists in cache
             if os.path.exists(cache_path) and os.path.getsize(cache_path) > 0:
                 logger.debug(f"Using cached audio for '{word}': {cache_path}")
-                # Copy to media files for the package
-                temp_media_path = os.path.join(tempfile.gettempdir(), f"hsk_{unicode_ids}_pronunciation.mp3")
+                
                 import shutil
-                shutil.copy2(cache_path, temp_media_path)
-                self.media_files.append(temp_media_path)
-                self.temp_files.append(temp_media_path)
-                return temp_media_path
+                shutil.copy2(cache_path, media_path)
+                self.media_files.append(media_path)
+                self.temp_files.append(media_path)
+                logger.debug(f"Copied cached audio to media path: {media_path}")
+                return media_path
             
             # Check if we should skip due to previous failures
             fail_marker = cache_path + ".failed"
@@ -443,25 +466,27 @@ class HSKAnkiGenerator:
             if not os.path.exists(cache_path) or os.path.getsize(cache_path) == 0:
                 raise Exception("TTS file creation failed")
             
-            # Copy to media files for the package
-            temp_media_path = os.path.join(tempfile.gettempdir(), f"hsk_{unicode_ids}_pronunciation.mp3")
+            # FIXED: Copy to working directory for proper Anki media inclusion
             import shutil
-            shutil.copy2(cache_path, temp_media_path)
+            shutil.copy2(cache_path, media_path)
             
-            self.media_files.append(temp_media_path)
-            self.temp_files.append(temp_media_path)
+            self.media_files.append(media_path)
+            self.temp_files.append(media_path)
             self.tts_success_count += 1
             
-            logger.debug(f"Successfully created and cached audio for '{word}'")
-            return temp_media_path
+            logger.debug(f"Successfully created and cached audio for '{word}' at: {media_path}")
+            return media_path
             
         except Exception as e:
             self.tts_fail_count += 1
             
             # Create a failure marker to avoid retrying the same word
-            fail_marker = cache_path + ".failed"
-            with open(fail_marker, 'w') as f:
-                f.write(f"Failed: {str(e)}\n")
+            try:
+                fail_marker = cache_path + ".failed"
+                with open(fail_marker, 'w') as f:
+                    f.write(f"Failed: {str(e)}\n")
+            except:
+                pass  # Don't fail if we can't write the marker
             
             # Check if it's a rate limit error
             if "429" in str(e) or "Too Many Requests" in str(e):
@@ -493,6 +518,8 @@ class HSKAnkiGenerator:
             deck_file = generator.create_deck(csv_file, output_file)
             logger.info(f"✅ Created deck: {deck_file}")
             return deck_file
+    
+    def generate_separate_decks(self, output_dir: str = "./decks") -> List[str]:
         """Generate separate Anki deck files for each HSK level (old behavior)"""
         os.makedirs(output_dir, exist_ok=True)
         
@@ -715,28 +742,6 @@ class HSKAnkiGenerator:
         return analysis
     
     def get_cache_stats(self):
-        """Get statistics about the audio cache"""
-        if not os.path.exists(self.cache_dir):
-            return {"cached": 0, "failed": 0, "total_size": 0}
-        
-        cached_count = 0
-        failed_count = 0
-        total_size = 0
-        
-        for file in os.listdir(self.cache_dir):
-            if file.endswith('.mp3'):
-                cached_count += 1
-                file_path = os.path.join(self.cache_dir, file)
-                total_size += os.path.getsize(file_path)
-            elif file.endswith('.failed'):
-                failed_count += 1
-        
-        return {
-            "cached": cached_count,
-            "failed": failed_count,
-            "total_size": total_size,
-            "size_mb": total_size / (1024 * 1024)
-        }
         """Get statistics about the audio cache"""
         if not os.path.exists(self.cache_dir):
             return {"cached": 0, "failed": 0, "total_size": 0}
