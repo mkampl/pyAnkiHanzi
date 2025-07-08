@@ -11,6 +11,7 @@ import sys
 import csv
 import tempfile
 import genanki
+import time
 from typing import Dict, List, Any
 import logging
 from pathlib import Path
@@ -558,7 +559,184 @@ class HSKAnkiGenerator:
         if failed_count > 0:
             logger.info(f"Cleared {failed_count} failure markers. Failed TTS requests will be retried.")
     
+    def test_tts_connection(self, test_word: str = "你好") -> Dict[str, Any]:
+        """Test TTS connection and rate limit status"""
+        logger.info(f"Testing TTS connection with word: '{test_word}'")
+        
+        result = {
+            "word": test_word,
+            "success": False,
+            "error": None,
+            "response_time": None,
+            "file_size": None,
+            "rate_limited": False,
+            "timestamp": None
+        }
+        
+        try:
+            import time
+            from gtts import gTTS
+            
+            start_time = time.time()
+            result["timestamp"] = time.strftime("%Y-%m-%d %H:%M:%S")
+            
+            # Create a temporary file for testing
+            temp_file = os.path.join(tempfile.gettempdir(), f"tts_test_{int(time.time())}.mp3")
+            
+            # Attempt TTS request
+            tts = gTTS(test_word, lang=self.language)
+            tts.save(temp_file)
+            
+            end_time = time.time()
+            result["response_time"] = end_time - start_time
+            
+            # Check if file was created successfully
+            if os.path.exists(temp_file):
+                result["file_size"] = os.path.getsize(temp_file)
+                result["success"] = True
+                logger.info(f"✅ TTS test successful: {result['response_time']:.2f}s, {result['file_size']} bytes")
+                os.remove(temp_file)  # Clean up
+            else:
+                result["error"] = "File not created"
+                logger.error("❌ TTS test failed: File not created")
+                
+        except Exception as e:
+            error_str = str(e)
+            result["error"] = error_str
+            
+            # Check for different types of errors
+            if "429" in error_str or "Too Many Requests" in error_str:
+                result["rate_limited"] = True
+                logger.error(f"❌ TTS Rate Limited: {error_str}")
+            elif "403" in error_str or "Forbidden" in error_str:
+                logger.error(f"❌ TTS Forbidden: {error_str}")
+            elif "network" in error_str.lower() or "connection" in error_str.lower():
+                logger.error(f"❌ TTS Network Error: {error_str}")
+            else:
+                logger.error(f"❌ TTS Unknown Error: {error_str}")
+        
+        return result
+    
+    def run_tts_stress_test(self, num_tests: int = 5, delay: float = 1.0) -> List[Dict[str, Any]]:
+        """Run multiple TTS tests to understand rate limiting behavior"""
+        test_words = ["你好", "谢谢", "再见", "学习", "汉字"]
+        results = []
+        
+        logger.info(f"Running TTS stress test with {num_tests} requests, {delay}s delay")
+        
+        for i in range(num_tests):
+            if i > 0:
+                time.sleep(delay)
+            
+            word = test_words[i % len(test_words)]
+            result = self.test_tts_connection(word)
+            results.append(result)
+            
+            logger.info(f"Test {i+1}/{num_tests}: {'✅' if result['success'] else '❌'} {word}")
+            
+            # Stop if we hit rate limit
+            if result["rate_limited"]:
+                logger.warning(f"Rate limit hit on test {i+1}, stopping stress test")
+                break
+        
+        return results
+    
+    def analyze_rate_limit_pattern(self) -> Dict[str, Any]:
+        """Analyze rate limiting patterns and suggest solutions"""
+        logger.info("Analyzing rate limit patterns...")
+        
+        # Test with different delays
+        test_results = []
+        delays = [0.1, 0.5, 1.0, 2.0, 5.0]
+        
+        for delay in delays:
+            if delay > 0:
+                logger.info(f"Testing with {delay}s delay...")
+                results = self.run_tts_stress_test(num_tests=3, delay=delay)
+                success_rate = sum(1 for r in results if r["success"]) / len(results)
+                test_results.append({
+                    "delay": delay,
+                    "success_rate": success_rate,
+                    "results": results
+                })
+                
+                if success_rate == 1.0:
+                    logger.info(f"✅ Found working delay: {delay}s")
+                    break
+            else:
+                # Test without delay
+                results = self.run_tts_stress_test(num_tests=3, delay=0)
+                success_rate = sum(1 for r in results if r["success"]) / len(results)
+                test_results.append({
+                    "delay": delay,
+                    "success_rate": success_rate,
+                    "results": results
+                })
+        
+        # Analysis
+        analysis = {
+            "test_results": test_results,
+            "recommendations": [],
+            "working_delay": None,
+            "total_blocked": True
+        }
+        
+        # Find working delay
+        for test in test_results:
+            if test["success_rate"] > 0:
+                analysis["total_blocked"] = False
+                if test["success_rate"] == 1.0:
+                    analysis["working_delay"] = test["delay"]
+                    break
+        
+        # Generate recommendations
+        if analysis["total_blocked"]:
+            analysis["recommendations"].extend([
+                "TTS service appears to be completely blocked",
+                "Try again in a few hours or tomorrow",
+                "Consider using --no-audio for now",
+                "Check if your IP is blocked",
+                "Try using a VPN or different network"
+            ])
+        elif analysis["working_delay"] is not None:
+            analysis["recommendations"].extend([
+                f"Use a delay of {analysis['working_delay']}s between requests",
+                "Consider running with smaller batches",
+                "The rate limit appears to be strict but not permanent"
+            ])
+        else:
+            analysis["recommendations"].extend([
+                "Partial blocking detected",
+                "Try longer delays (10-30 seconds)",
+                "Consider running overnight with very slow requests",
+                "Use --no-audio for immediate results"
+            ])
+        
+        return analysis
+    
     def get_cache_stats(self):
+        """Get statistics about the audio cache"""
+        if not os.path.exists(self.cache_dir):
+            return {"cached": 0, "failed": 0, "total_size": 0}
+        
+        cached_count = 0
+        failed_count = 0
+        total_size = 0
+        
+        for file in os.listdir(self.cache_dir):
+            if file.endswith('.mp3'):
+                cached_count += 1
+                file_path = os.path.join(self.cache_dir, file)
+                total_size += os.path.getsize(file_path)
+            elif file.endswith('.failed'):
+                failed_count += 1
+        
+        return {
+            "cached": cached_count,
+            "failed": failed_count,
+            "total_size": total_size,
+            "size_mb": total_size / (1024 * 1024)
+        }
         """Get statistics about the audio cache"""
         if not os.path.exists(self.cache_dir):
             return {"cached": 0, "failed": 0, "total_size": 0}
@@ -613,6 +791,14 @@ def main():
                        help='Directory for audio cache (default: ./audio_cache)')
     parser.add_argument('--clear-failed', action='store_true',
                        help='Clear failure markers to retry failed TTS requests')
+    parser.add_argument('--test-tts', action='store_true',
+                       help='Test TTS connection and rate limit status')
+    parser.add_argument('--stress-test', type=int, metavar='N',
+                       help='Run N TTS stress tests to analyze rate limits')
+    parser.add_argument('--analyze-limits', action='store_true',
+                       help='Analyze rate limiting patterns and suggest solutions')
+    parser.add_argument('--test-word', default='你好',
+                       help='Word to use for TTS testing (default: 你好)')
     parser.add_argument('--cache-stats', action='store_true',
                        help='Show audio cache statistics')
     parser.add_argument('--analyze-only', action='store_true',
@@ -632,6 +818,38 @@ def main():
             language=args.language,
             cache_dir=args.cache_dir
         ) as generator:
+            
+            if args.test_tts:
+                result = generator.test_tts_connection(args.test_word)
+                print(f"🔍 TTS Test Results:")
+                print(f"  Word: {result['word']}")
+                print(f"  Success: {'✅' if result['success'] else '❌'}")
+                print(f"  Response Time: {result['response_time']:.2f}s" if result['response_time'] else "  Response Time: N/A")
+                print(f"  File Size: {result['file_size']} bytes" if result['file_size'] else "  File Size: N/A")
+                print(f"  Rate Limited: {'⚠️  Yes' if result['rate_limited'] else '✅ No'}")
+                print(f"  Timestamp: {result['timestamp']}")
+                if result['error']:
+                    print(f"  Error: {result['error']}")
+                return
+            
+            if args.stress_test:
+                results = generator.run_tts_stress_test(args.stress_test, delay=1.0)
+                success_count = sum(1 for r in results if r["success"])
+                print(f"🧪 Stress Test Results:")
+                print(f"  Tests: {len(results)}")
+                print(f"  Success: {success_count}/{len(results)} ({success_count/len(results)*100:.1f}%)")
+                print(f"  Rate Limited: {sum(1 for r in results if r['rate_limited'])}")
+                return
+            
+            if args.analyze_limits:
+                analysis = generator.analyze_rate_limit_pattern()
+                print(f"📊 Rate Limit Analysis:")
+                print(f"  Total Blocked: {'❌ Yes' if analysis['total_blocked'] else '✅ No'}")
+                print(f"  Working Delay: {analysis['working_delay']}s" if analysis['working_delay'] else "  Working Delay: None found")
+                print(f"📋 Recommendations:")
+                for rec in analysis['recommendations']:
+                    print(f"  • {rec}")
+                return
             
             if args.cache_stats:
                 stats = generator.get_cache_stats()
