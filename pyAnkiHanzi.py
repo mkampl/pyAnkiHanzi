@@ -119,52 +119,106 @@ class AnkiHanziGenerator:
         
         return True
     
-    def read_hanzi_words(self, csv_filename: str) -> Tuple[int, str, List[List[str]]]:
+    def read_hanzi_words(self, csv_filename: str) -> Tuple[int, str, List[Tuple[str, List[List[str]]]]]:
         """
-        Reads Chinese words from a CSV file.
+        Reads Chinese words from a CSV file with optional subdeck support.
+        
+        CSV Format:
+        #<deck_number> <deck_name>
+        ##<subdeck_name> (optional)
+        <translation> <hanzi>
         
         Args:
             csv_filename: Path to CSV file
             
         Returns:
-            Tuple of (deck number, deck name, list of words)
+            Tuple of (deck number, deck name, list of (subdeck_name, words) tuples)
             
         Raises:
             ValueError: For invalid CSV format
             FileNotFoundError: When file is not found
         """
         try:
-            hanzi_words = []
-            with open(csv_filename, 'r', encoding='utf-8') as f:
-                reader = csv.reader(f, delimiter='\t')
-                try:
-                    header = next(reader)
-                    if len(header) < 2:
-                        raise ValueError("Header must have at least 2 columns")
-                    deck_number = int(header[0])
-                    deck_name = header[1]
-                    logger.info(f"Found deck: {deck_name} (ID: {deck_number})")
-                except (ValueError, StopIteration) as e:
-                    logger.error(f"Error reading header: {e}")
-                    raise ValueError(f"Invalid CSV format: {e}")
-                
-                for row_num, row in enumerate(reader, start=2):
-                    if len(row) >= 2:
-                        # Remove whitespace and check for empty values
-                        translation = row[0].strip()
-                        hanzi = row[1].strip()
-                        if translation and hanzi:
-                            hanzi_words.append([translation, hanzi])
-                        else:
-                            logger.warning(f"Row {row_num} skipped (empty values)")
-                    else:
-                        logger.warning(f"Row {row_num} skipped (incomplete)")
+            deck_number = None
+            deck_name = None
+            current_subdeck = None
+            current_words = []
+            all_subdecks = []
             
-            if not hanzi_words:
+            with open(csv_filename, 'r', encoding='utf-8') as f:
+                for line_num, line in enumerate(f, start=1):
+                    line = line.strip()
+                    if not line:
+                        continue
+                    
+                    # Handle deck definition
+                    if line.startswith('#') and not line.startswith('##'):
+                        # Save previous subdeck if exists
+                        if current_subdeck and current_words:
+                            all_subdecks.append((current_subdeck, current_words.copy()))
+                            current_words = []
+                        
+                        # Split on either space or tab, but only once
+                        line_content = line[1:].strip()
+                        # Try splitting on tab first, then space
+                        if '\t' in line_content:
+                            parts = line_content.split('\t', 1)
+                        else:
+                            parts = line_content.split(' ', 1)
+                        
+                        if len(parts) < 2:
+                            raise ValueError(f"Line {line_num}: Invalid deck format")
+                        try:
+                            deck_number = int(parts[0])
+                            deck_name = parts[1]
+                            logger.info(f"Found deck: {deck_name} (ID: {deck_number})")
+                        except ValueError:
+                            raise ValueError(f"Line {line_num}: Invalid deck number")
+                        continue
+                    
+                    # Handle subdeck definition
+                    if line.startswith('##'):
+                        if deck_name is None:
+                            raise ValueError(f"Line {line_num}: Subdeck found before deck definition")
+                        
+                        # Save previous subdeck if exists
+                        if current_subdeck and current_words:
+                            all_subdecks.append((current_subdeck, current_words.copy()))
+                            current_words = []
+                        
+                        current_subdeck = line[2:].strip()
+                        logger.info(f"Found subdeck: {current_subdeck}")
+                        continue
+                    
+                    # Handle word entries
+                    if '\t' in line:
+                        parts = line.split('\t', 1)
+                        if len(parts) >= 2:
+                            translation = parts[0].strip()
+                            hanzi = parts[1].strip()
+                            if translation and hanzi:
+                                current_words.append([translation, hanzi])
+                            else:
+                                logger.warning(f"Line {line_num} skipped (empty values)")
+                        else:
+                            logger.warning(f"Line {line_num} skipped (incomplete)")
+            
+            # Save last subdeck
+            if current_subdeck and current_words:
+                all_subdecks.append((current_subdeck, current_words.copy()))
+            elif current_words and not current_subdeck:
+                # No subdecks used, treat as main deck
+                all_subdecks.append((None, current_words))
+            
+            if deck_number is None or deck_name is None:
+                raise ValueError("No deck definition found")
+            
+            if not all_subdecks:
                 raise ValueError("No valid words found in CSV file")
             
-            logger.info(f"{len(hanzi_words)} words successfully read")
-            return deck_number, deck_name, hanzi_words
+            total_words = sum(len(words) for _, words in all_subdecks)
+            logger.info(f"{total_words} words successfully read across {len(all_subdecks)} deck(s)")
+            return deck_number, deck_name, all_subdecks
         
         except FileNotFoundError:
             logger.error(f"File {csv_filename} not found")
@@ -270,37 +324,55 @@ class AnkiHanziGenerator:
             raise ValueError("Invalid CSV format")
         
         # Read data
-        deck_number, deck_name, hanzi_words = self.read_hanzi_words(csv_filename)
+        deck_number, deck_name, all_subdecks = self.read_hanzi_words(csv_filename)
         
-        # Check duplicates
-        duplicates = self.check_duplicates(hanzi_words)
-        if duplicates:
-            logger.warning(f"{len(duplicates)} duplicates found")
-        
-        # Create model and deck
+        # Create model
         model = self.create_model()
-        deck = genanki.Deck(deck_number, deck_name)
         
-        # Create cards
-        logger.info("Creating Anki cards...")
-        for translation, hanzi in tqdm(hanzi_words, desc="Creating cards"):
-            try:
-                pinyin_str = self.get_pinyin_with_tones(hanzi)
-                mp3_path = self.get_pronunciation_mp3(hanzi)
-                
-                mp3_field = f'[sound:{os.path.basename(mp3_path)}]' if mp3_path else ''
-                
-                note = genanki.Note(
-                    model=model,
-                    fields=[translation, hanzi, pinyin_str, mp3_field]
-                )
-                deck.add_note(note)
-            except Exception as e:
-                logger.error(f"Error creating card for '{hanzi}': {e}")
-                continue
+        # Create decks and package
+        decks = []
+        all_notes = []
         
-        # Create package
-        package = genanki.Package(deck)
+        for subdeck_name, hanzi_words in all_subdecks:
+            # Check duplicates for this subdeck
+            duplicates = self.check_duplicates(hanzi_words)
+            if duplicates:
+                logger.warning(f"{len(duplicates)} duplicates found in {subdeck_name or 'main deck'}")
+            
+            # Create deck name
+            if subdeck_name:
+                full_deck_name = f"{deck_name}::{subdeck_name}"
+                # Use unique deck ID for each subdeck
+                deck_id = deck_number + hash(subdeck_name) % 1000000
+            else:
+                full_deck_name = deck_name
+                deck_id = deck_number
+            
+            deck = genanki.Deck(deck_id, full_deck_name)
+            
+            # Create cards for this deck
+            logger.info(f"Creating Anki cards for {full_deck_name}...")
+            for translation, hanzi in tqdm(hanzi_words, desc=f"Creating cards for {subdeck_name or 'main deck'}"):
+                try:
+                    pinyin_str = self.get_pinyin_with_tones(hanzi)
+                    mp3_path = self.get_pronunciation_mp3(hanzi)
+                    
+                    mp3_field = f'[sound:{os.path.basename(mp3_path)}]' if mp3_path else ''
+                    
+                    note = genanki.Note(
+                        model=model,
+                        fields=[translation, hanzi, pinyin_str, mp3_field]
+                    )
+                    deck.add_note(note)
+                    all_notes.append(note)
+                except Exception as e:
+                    logger.error(f"Error creating card for '{hanzi}': {e}")
+                    continue
+            
+            decks.append(deck)
+        
+        # Create package with all decks
+        package = genanki.Package(decks)
         if self.media_files:
             package.media_files = self.media_files
         
@@ -311,7 +383,8 @@ class AnkiHanziGenerator:
         # Write file
         try:
             package.write_to_file(output_file)
-            logger.info(f"Deck successfully created: {output_file}")
+            logger.info(f"Deck(s) successfully created: {output_file}")
+            logger.info(f"Created {len(decks)} deck(s) with {len(all_notes)} total cards")
             return output_file
         except Exception as e:
             logger.error(f"Error writing output file: {e}")
