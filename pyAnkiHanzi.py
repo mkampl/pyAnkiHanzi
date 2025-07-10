@@ -23,7 +23,8 @@ DEFAULT_CONFIG = {
     'stroke_animation_speed': 1,
     'delay_between_strokes': 150,
     'character_width': 250,
-    'character_height': 250
+    'character_height': 250,
+    'template_file': 'hanzi_template.json'
 }
 
 # Logging configuration
@@ -41,9 +42,10 @@ logger = logging.getLogger(__name__)
 class AnkiHanziGenerator:
     """Main class for creating Anki cards for Chinese characters"""
     
-    def __init__(self, language: str = 'zh', include_audio: bool = True):
+    def __init__(self, language: str = 'zh', include_audio: bool = True, template_file: str = None):
         self.language = language
         self.include_audio = include_audio
+        self.template_file = template_file or DEFAULT_CONFIG['template_file']
         self.temp_dir = tempfile.mkdtemp(prefix='pyankihanzi_')
         self.media_files = []
         logger.info(f"Initialized with language: {language}, audio: {include_audio}")
@@ -62,6 +64,44 @@ class AnkiHanziGenerator:
                 logger.info(f"Cleaned up temporary directory {self.temp_dir}")
         except Exception as e:
             logger.warning(f"Could not clean up temporary directory: {e}")
+    
+    def load_template(self) -> Tuple[str, str]:
+        """
+        Loads HTML template from file and extracts question and answer formats.
+        
+        Returns:
+            Tuple of (question_format, answer_format)
+        """
+        try:
+            with open(self.template_file, 'r', encoding='utf-8') as f:
+                import json
+                template_data = json.load(f)
+            
+            # Replace placeholders with actual values in both qfmt and afmt
+            qfmt = template_data['qfmt']
+            afmt = template_data['afmt']
+            
+            # Replace placeholders
+            replacements = {
+                '__HANZI_WRITER_VERSION__': DEFAULT_CONFIG['hanzi_writer_version'],
+                '__STROKE_ANIMATION_SPEED__': str(DEFAULT_CONFIG['stroke_animation_speed']),
+                '__DELAY_BETWEEN_STROKES__': str(DEFAULT_CONFIG['delay_between_strokes']),
+                '__CHARACTER_WIDTH__': str(DEFAULT_CONFIG['character_width']),
+                '__CHARACTER_HEIGHT__': str(DEFAULT_CONFIG['character_height'])
+            }
+            
+            for placeholder, value in replacements.items():
+                qfmt = qfmt.replace(placeholder, value)
+                afmt = afmt.replace(placeholder, value)
+            
+            return qfmt, afmt
+            
+        except FileNotFoundError:
+            logger.error(f"Template file {self.template_file} not found")
+            raise
+        except Exception as e:
+            logger.error(f"Error loading template: {e}")
+            raise
     
     def validate_csv_format(self, csv_filename: str) -> bool:
         """Validates CSV format before processing"""
@@ -194,6 +234,8 @@ class AnkiHanziGenerator:
     
     def create_model(self) -> genanki.Model:
         """Creates the Anki model for the cards"""
+        qfmt, afmt = self.load_template()
+        
         return genanki.Model(
             DEFAULT_CONFIG['model_id'],
             'Hanzi Stroke Order Online JS',
@@ -206,68 +248,8 @@ class AnkiHanziGenerator:
             templates=[
                 {
                     'name': 'Hanzi Card',
-                    'qfmt': f'''
-                        <div id="translation">{{{{Translation}}}}</div>
-                        <div id="target-quiz"></div>
-                        <script type="text/javascript">
-                            var characters = "{{{{Hanzi}}}}".split("");
-                            var js = document.createElement("script");
-                            js.type = "text/javascript";
-                            js.src = "https://cdn.jsdelivr.net/npm/hanzi-writer@{DEFAULT_CONFIG['hanzi_writer_version']}/dist/hanzi-writer.min.js";
-                            js.onload = function() {{
-                                for (let x of characters) {{
-                                    var characterContainer = document.createElement('div');
-                                    characterContainer.style.display = 'inline-block';
-                                    characterContainer.style.border = '2px solid black';
-                                    characterContainer.style.margin = '2px';
-
-                                    var writer = HanziWriter.create(characterContainer, x, {{
-                                        width: {DEFAULT_CONFIG['character_width']},
-                                        height: {DEFAULT_CONFIG['character_height']},
-                                        showCharacter: false,
-                                        showOutline: false,
-                                        showHintAfterMisses: 1,
-                                        highlightOnComplete: false,
-                                        padding: 5
-                                    }});
-
-                                    writer.quiz({{
-                                        onMistake: function() {{ console.log("Mistake!"); }},
-                                        onComplete: function() {{ console.log("Completed!"); }}
-                                    }});
-
-                                    document.getElementById('target-quiz').appendChild(characterContainer);
-                                }}
-                            }};
-                            document.body.appendChild(js);
-                        </script>
-                    ''',
-                    'afmt': f'''
-                        <div id="word">{{{{Translation}}}} - {{{{Hanzi}}}} {{{{Pinyin}}}} <br>{{{{Mp3}}}}<br></div>
-                        <hr id="answer">
-                        <div id="target-animation"></div>
-                        <script type="text/javascript">
-                            var characters = "{{{{Hanzi}}}}".split("");
-                            var js = document.createElement("script");
-                            js.type = "text/javascript";
-                            js.src = "https://cdn.jsdelivr.net/npm/hanzi-writer@{DEFAULT_CONFIG['hanzi_writer_version']}/dist/hanzi-writer.min.js";
-                            js.onload = function() {{
-                                for (let x of characters) {{
-                                    var writer = HanziWriter.create('target-animation', x, {{
-                                        width: 70,
-                                        height: 70,
-                                        padding: 5,   
-                                        showOutline: true,
-                                        strokeAnimationSpeed: {DEFAULT_CONFIG['stroke_animation_speed']}, 
-                                        delayBetweenStrokes: {DEFAULT_CONFIG['delay_between_strokes']},
-                                        radicalColor: '#337ab7'
-                                    }});
-                                    writer.loopCharacterAnimation();
-                                }}
-                            }};
-                            document.body.appendChild(js);
-                        </script>
-                    ''',
+                    'qfmt': qfmt,
+                    'afmt': afmt,
                 },
             ],
         )
@@ -349,6 +331,8 @@ def parse_arguments():
                        help='Language for TTS (default: zh)')
     parser.add_argument('--output', 
                        help='Output file (default: based on input file)')
+    parser.add_argument('--template', 
+                       help='HTML template file (default: hanzi_template.html)')
     parser.add_argument('--verbose', '-v', action='store_true',
                        help='Verbose output')
     return parser.parse_args()
@@ -365,7 +349,8 @@ def main():
     try:
         with AnkiHanziGenerator(
             language=args.language,
-            include_audio=not args.no_audio
+            include_audio=not args.no_audio,
+            template_file=args.template
         ) as generator:
             output_file = generator.create_deck(args.input_file, args.output)
             print(f"✅ Deck successfully created: {output_file}")
