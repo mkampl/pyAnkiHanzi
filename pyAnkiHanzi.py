@@ -228,17 +228,25 @@ class AnkiHanziGenerator:
             logger.error(f"Error reading CSV file: {e}")
             raise
     
-    def check_duplicates(self, hanzi_words: List[List[str]]) -> List[Tuple[int, str, str]]:
-        """Checks for duplicate entries"""
+    def check_duplicates(self, hanzi_words: List[List[str]]) -> List[List[str]]:
+        """Checks for duplicate entries and returns deduplicated list"""
         seen = set()
-        duplicates = []
+        deduplicated = []
+        duplicate_count = 0
+        
         for i, (translation, hanzi) in enumerate(hanzi_words):
             key = (translation.lower(), hanzi)
             if key in seen:
-                duplicates.append((i+1, translation, hanzi))
-                logger.warning(f"Duplicate found: {translation} - {hanzi}")
-            seen.add(key)
-        return duplicates
+                duplicate_count += 1
+                logger.warning(f"Duplicate found and skipped: {translation} - {hanzi}")
+            else:
+                seen.add(key)
+                deduplicated.append([translation, hanzi])
+        
+        if duplicate_count > 0:
+            logger.info(f"Removed {duplicate_count} duplicates, {len(deduplicated)} unique words remain")
+        
+        return deduplicated
     
     def get_pronunciation_mp3(self, word: str) -> Optional[str]:
         """
@@ -355,10 +363,8 @@ class AnkiHanziGenerator:
         all_notes = []
         
         for subdeck_name, hanzi_words in all_subdecks:
-            # Check duplicates for this subdeck
-            duplicates = self.check_duplicates(hanzi_words)
-            if duplicates:
-                logger.warning(f"{len(duplicates)} duplicates found in {subdeck_name or 'main deck'}")
+            # Remove duplicates for this subdeck
+            hanzi_words = self.check_duplicates(hanzi_words)
             
             # Create deck name
             if subdeck_name:
