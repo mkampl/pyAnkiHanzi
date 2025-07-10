@@ -24,7 +24,8 @@ DEFAULT_CONFIG = {
     'delay_between_strokes': 150,
     'character_width': 250,
     'character_height': 250,
-    'template_file': 'hanzi_template.json'
+    'template_file': 'hanzi_template.json',
+    'audio_cache_dir': './audio_cache'
 }
 
 # Logging configuration
@@ -256,6 +257,26 @@ class AnkiHanziGenerator:
             unicode_ids = "_".join(str(ord(char)) for char in word)
             mp3_filename = os.path.join(self.temp_dir, f"{unicode_ids}_pronunciation.mp3")
             
+            # Check for cached audio file first
+            cache_dir = DEFAULT_CONFIG['audio_cache_dir']
+            if os.path.exists(cache_dir):
+                # Try different cache filename patterns
+                cache_patterns = [
+                    f"{word}_{unicode_ids}_{self.language}.mp3",  # HSK pattern
+                    f"{unicode_ids}_{self.language}.mp3",
+                    f"{word}.mp3",
+                    f"{unicode_ids}.mp3"
+                ]
+                
+                for pattern in cache_patterns:
+                    cache_path = os.path.join(cache_dir, pattern)
+                    if os.path.exists(cache_path) and os.path.getsize(cache_path) > 0:
+                        shutil.copy2(cache_path, mp3_filename)
+                        self.media_files.append(mp3_filename)
+                        logger.debug(f"Using cached audio for '{word}': {cache_path}")
+                        return mp3_filename
+            
+            # Create new TTS audio if not cached
             tts = gTTS(word, lang=self.language)
             tts.save(mp3_filename)
             
